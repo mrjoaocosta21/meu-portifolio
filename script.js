@@ -1,128 +1,98 @@
-class Slider {
-    constructor(slider) {
-        this.slider = slider;
-        this.display = slider.querySelector(".image-display");
-        this.navButtons = Array.from(slider.querySelectorAll(".nav-button"));
-        this.prevButton = slider.querySelector(".prev-button");
-        this.nextButton = slider.querySelector(".next-button");
-        this.sliderNavigation = slider.querySelector(".slider-navigation");
-        this.currentSlideIndex = 0;
-        this.imageCache = {};
+/* ==========================================================
+   JOÃO.DEV — INTERAÇÕES
+   Menu móvel, cabeçalho, slider acessível e ano do rodapé.
+   ========================================================== */
 
-        this.initialize();
-    }
+const header = document.querySelector('.site-header');
+const menuToggle = document.getElementById('menu-toggle');
+const navLinks = document.getElementById('nav-links');
+const navOverlay = document.getElementById('nav-overlay');
 
-    initialize() {
-        this.setupSlider();
-        this.preloadImages();
-        this.eventListeners();
-    }
-
-    setupSlider() {
-        this.showSlide(this.currentSlideIndex);
-    }
-
-    showSlide(index, moveFocus = false) {
-        this.currentSlideIndex = index;
-
-        const navButtonImg = this.navButtons[this.currentSlideIndex]?.querySelector("img");
-        if (navButtonImg) {
-            const imgClone = navButtonImg.cloneNode();
-            imgClone.alt = navButtonImg.alt;
-            this.display.replaceChildren(imgClone);
-        }
-
-        this.updateNavButtons(moveFocus);
-    }
-
-    updateNavButtons(moveFocus) {
-        this.navButtons.forEach((button, buttonIndex) => {
-            const isSelected = buttonIndex === this.currentSlideIndex;
-            button.setAttribute("aria-selected", String(isSelected));
-            button.tabIndex = isSelected ? 0 : -1;
-
-            if (isSelected && moveFocus) {
-                button.focus({ preventScroll: true });
-            }
-        });
-    }
-
-    preloadImages() {
-        this.navButtons.forEach((button) => {
-            const imgElement = button.querySelector("img");
-            if (imgElement) {
-                const imgSrc = imgElement.src;
-                if (!this.imageCache[imgSrc]) {
-                    this.imageCache[imgSrc] = new Image();
-                    this.imageCache[imgSrc].src = imgSrc;
-                }
-            }
-        });
-    }
-
-    eventListeners() {
-        document.addEventListener("keydown", (event) => this.handleKeydown(event));
-
-        this.sliderNavigation.addEventListener("click", (event) => {
-            const targetButton = event.target.closest(".nav-button");
-            const index = targetButton ? this.navButtons.indexOf(targetButton) : -1;
-            if (index !== -1) {
-                this.showSlide(index, true);
-            }
-        });
-
-        this.prevButton.addEventListener("click", () => this.handleAction("prev"));
-        this.nextButton.addEventListener("click", () => this.handleAction("next"));
-    }
-
-    handleKeydown(event) {
-        const target = event.target;
-
-        if (target.matches("input, textarea, select") || target.isContentEditable) {
-            return;
-        }
-
-        const handledKeys = ["ArrowRight", "ArrowLeft", "Home", "End"];
-        if (!handledKeys.includes(event.key)) return;
-
-        const focusInside = this.slider.contains(document.activeElement);
-
-        if (!focusInside && !this.isVisible()) return;
-
-        if (focusInside) event.preventDefault();
-        this.handleAction(event.key, focusInside);
-    }
-
-    isVisible() {
-        const rect = this.slider.getBoundingClientRect();
-        return rect.top < window.innerHeight && rect.bottom > 0;
-    }
-
-    handleAction(action, moveFocus = false) {
-        const total = this.navButtons.length;
-        if (!total) return;
-
-        if (action === "Home") {
-            this.currentSlideIndex = 0;
-        } else if (action === "End") {
-            this.currentSlideIndex = total - 1;
-        } else if (action === "ArrowRight" || action === "next") {
-            this.currentSlideIndex = (this.currentSlideIndex + 1) % total;
-        } else if (action === "ArrowLeft" || action === "prev") {
-            this.currentSlideIndex = (this.currentSlideIndex - 1 + total) % total;
-        }
-
-        this.showSlide(this.currentSlideIndex, moveFocus);
-    }
+function definirMenu(aberto, devolverFoco = false) {
+  if (!menuToggle || !navLinks || !navOverlay) return;
+  menuToggle.classList.toggle('active', aberto);
+  navLinks.classList.toggle('active', aberto);
+  navOverlay.classList.toggle('active', aberto);
+  menuToggle.setAttribute('aria-expanded', String(aberto));
+  menuToggle.setAttribute('aria-label', aberto ? 'Fechar menu' : 'Abrir menu');
+  document.body.classList.toggle('menu-open', aberto);
+  if (!aberto && devolverFoco) menuToggle.focus();
 }
 
-const sliderElement = document.querySelector(".image-slider");
-if (sliderElement) {
-    const ImageSlider = new Slider(sliderElement);
+if (menuToggle && navLinks && navOverlay) {
+  menuToggle.addEventListener('click', () => definirMenu(!navLinks.classList.contains('active')));
+  navOverlay.addEventListener('click', () => definirMenu(false, true));
+  navLinks.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => definirMenu(false));
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && navLinks.classList.contains('active')) {
+      definirMenu(false, true);
+    }
+  });
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 760) definirMenu(false);
+  });
 }
 
-// Atualização dinâmica do ano no rodapé
-const yearSpan = document.getElementById("year");
-if (yearSpan) {
-    yearSpan.textContent = new Date().getFullYear();
+function atualizarCabecalho() {
+  if (header) header.classList.toggle('is-scrolled', window.scrollY > 20);
 }
+window.addEventListener('scroll', atualizarCabecalho, { passive: true });
+atualizarCabecalho();
+
+/* Slider sem troca automática: dá controle ao visitante.
+   Teclas de seta, Home e End funcionam APENAS com o foco nas abas. */
+class PortfolioSlider {
+  constructor(element) {
+    this.element = element;
+    this.slides = [...element.querySelectorAll('.project-slide')];
+    this.tabs = [...element.querySelectorAll('.slider-tab')];
+    this.prev = element.querySelector('.prev-button');
+    this.next = element.querySelector('.next-button');
+    this.status = element.querySelector('#slider-status');
+    this.current = 0;
+    if (!this.slides.length || this.slides.length !== this.tabs.length) return;
+    this.bindEvents();
+    this.show(0);
+  }
+
+  show(index, moveFocus = false) {
+    this.current = (index + this.slides.length) % this.slides.length;
+    this.slides.forEach((slide, i) => {
+      const active = i === this.current;
+      slide.hidden = !active;
+      slide.classList.toggle('is-active', active);
+    });
+    this.tabs.forEach((tab, i) => {
+      const active = i === this.current;
+      tab.setAttribute('aria-selected', String(active));
+      tab.tabIndex = active ? 0 : -1;
+    });
+    if (this.status) this.status.textContent = `Projeto ${this.current + 1} de ${this.slides.length}`;
+    if (moveFocus) this.tabs[this.current].focus();
+  }
+
+  bindEvents() {
+    this.prev?.addEventListener('click', () => this.show(this.current - 1));
+    this.next?.addEventListener('click', () => this.show(this.current + 1));
+    this.tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => this.show(index));
+      tab.addEventListener('keydown', event => {
+        let target;
+        if (event.key === 'ArrowRight') target = this.current + 1;
+        if (event.key === 'ArrowLeft') target = this.current - 1;
+        if (event.key === 'Home') target = 0;
+        if (event.key === 'End') target = this.slides.length - 1;
+        if (target === undefined) return;
+        event.preventDefault();
+        this.show(target, true);
+      });
+    });
+  }
+}
+const slider = document.getElementById('project-slider');
+if (slider) new PortfolioSlider(slider);
+
+const year = document.getElementById('year');
+if (year) year.textContent = String(new Date().getFullYear());
